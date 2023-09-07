@@ -76,5 +76,32 @@ const uploadCoversToS3 = (
   });
 };
 
+const uploadPostImageToS3 = (req: Request, res: Response, next: NextFunction) => {
+  const { file } = req;
+  const { _id } = req.body;
 
-export { uploadProfilesToS3, uploadCoversToS3 };
+  if (!file) {
+    return res.status(400).json({ error: "No file provided" });
+  }
+
+  const params = {
+    Bucket: "hackerconnect-images",
+    Key: `uploads/posts/${_id}_${Date.now()}_${file.originalname}`,
+    Body: file.buffer,
+    ACL: "public-read",
+  };
+
+  s3.upload(params, (err: any, data: any) => {
+    if (err) {
+      console.error("Error uploading to S3:", err);
+      return res.status(500).json({ error: "Error uploading to S3" });
+    }
+
+    // @ts-ignore
+    req.s3Url = data.Location;
+    next();
+  });
+}
+
+
+export { uploadProfilesToS3, uploadCoversToS3, uploadPostImageToS3 };

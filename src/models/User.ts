@@ -30,16 +30,38 @@ const userSchema = new mongoose.Schema(
       type: Date,
       require: true,
     },
+    isOTPVerified: {
+      type: Boolean,
+      require: true,
+      default: false,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      require: true,
+      default: false,
+    },
     title: String,
     gender: String,
     about: String,
-    profile: String,
-    cover: String,
+    profile: {
+      type: String,
+      default:
+        "https://hackerconnect-images.s3.amazonaws.com/defaults/7309681.jpg",
+      required: true,
+    },
+    cover: {
+      type: String,
+      default:
+        "https://hackerconnect-images.s3.amazonaws.com/defaults/1062.jpg",
+      required: true,
+    },
     isBlocked: Boolean,
     isVerified: Boolean,
     isActive: Boolean,
-    connectionRequests: Array,
-    connections: Array,
+    connectionRequests: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "ConnectionRequest" },
+    ],
+    connections: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     followers: Array,
     following: Array,
     blockedUsers: Array,
