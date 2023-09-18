@@ -51,4 +51,9 @@ export interface GetConnectionsDTO {
 
 export interface SearchForUsersDTO {
   searchText: string;
+  page: number;
+}
+
+export interface DeleteUserDTO {
+  userId: mongoose.Types.ObjectId
 }

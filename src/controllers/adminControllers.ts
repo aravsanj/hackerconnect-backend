@@ -94,6 +94,7 @@ const createNewAccount = async (req: Request, res: Response) => {
       hashedPassword,
       phone,
       isOTPVerified: true,
+      isEmailVerified: true,
     };
 
     const newUser = new User(userData);

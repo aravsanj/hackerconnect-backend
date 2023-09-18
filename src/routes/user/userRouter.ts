@@ -12,6 +12,8 @@ import {
   getConnections,
   searchForUsers,
   getRecommendations,
+  deactivateAccount,
+  deleteAccount,
 } from "../../controllers/userControllers.js";
 import multer from "multer";
 import {
@@ -31,14 +33,14 @@ userRouter.get("/getNotifications", verifyJWT, getNotifications);
 
 userRouter.post("/updateNotifications", verifyJWT, updateNotifications);
 
-userRouter.post("/acceptConnection", verifyJWT, acceptConnection) 
-userRouter.post("/rejectConnection", verifyJWT, rejectConnection) 
-userRouter.post("/sendConnection", verifyJWT, sendConnection)
-userRouter.post("/removeConnection", verifyJWT, removeConnection)
-userRouter.get("/getConnections", verifyJWT, getConnections)
-userRouter.get("/getRecommendations", verifyJWT, getRecommendations)
+userRouter.post("/acceptConnection", verifyJWT, acceptConnection);
+userRouter.post("/rejectConnection", verifyJWT, rejectConnection);
+userRouter.post("/sendConnection", verifyJWT, sendConnection);
+userRouter.post("/removeConnection", verifyJWT, removeConnection);
+userRouter.get("/getConnections", verifyJWT, getConnections);
+userRouter.get("/getRecommendations", verifyJWT, getRecommendations);
 
-userRouter.post("/search", verifyJWT, searchForUsers)
+userRouter.post("/search", verifyJWT, searchForUsers);
 
 userRouter.get("/:username", getProfile);
 
@@ -61,5 +63,8 @@ userRouter.post(
     res.status(200).json({ imageUrl: req.s3Url });
   }
 );
+
+userRouter.post("/deactivate", deactivateAccount);
+userRouter.post("/delete", deleteAccount)
 
 export default userRouter;

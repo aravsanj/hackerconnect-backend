@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export enum NotificationType {
   LIKE = 'like',
   COMMENT = 'comment',
+  MENTION = 'mention',
   CONNECTION_REQUEST = 'connection_request',
   CONNECTION_REQUEST_ACCEPTED = "connection_request_accepted"
 }

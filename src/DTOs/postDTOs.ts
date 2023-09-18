@@ -15,11 +15,18 @@ export interface LikePostDTO {
   senderId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
 }
-
+interface MentionItem {
+  display: string;
+  id: mongoose.Types.ObjectId;
+  childIndex: number;
+  index: number;
+  plainTextIndex: number;
+}
 export interface AddCommentDTO {
   postId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   content: string;
+  mentions: MentionItem[]
 }
 
 export interface GetCommentsDTO {
@@ -29,6 +36,7 @@ export interface GetCommentsDTO {
 
 export interface SearchPostsDTO {
   searchText: string;
+  page: number;
 }
 
 export interface ReportPostDTO {

@@ -14,6 +14,14 @@ import {
   validatePhoneDTO,
 } from "../DTOs/authDTOs.js";
 import generateConfirmLink from "../middleware/generateConfirmLink.js";
+import {
+  TWILIO_PHONE,
+  TWILIO_RECEIVER_PHONE,
+  TWILIO_SID,
+  TWILIO_TOKEN,
+} from "../config/twilio.js";
+import otpGenerator from "otp-generator";
+import twilio from "twilio";
 import mongoose from "mongoose";
 
 type userData = {
@@ -55,6 +63,8 @@ const Register = async (req: Request, res: Response) => {
     const newUser = new User(userData);
 
     await newUser.save();
+
+
     res
       .status(201)
       .json({ message: "Verify phone", phone: phone, email: email });
@@ -77,6 +87,7 @@ const Login = async (req: Request, res: Response) => {
         isOTPVerified: 1,
         isEmailVerified: 1,
         phone: 1,
+        isActive: 1,
       }
     );
 
@@ -84,20 +95,33 @@ const Login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid user" });
     }
 
-    if (!user.isOTPVerified || !user.isEmailVerified) {
-      await User.deleteOne({ username: username });
-
-      return res.status(202).json({
-        isVerified: false,
-        message: "Account unverified, please re-register",
-      });
+    if (!user.isActive) {
+      user.isActive = true;
+      await user.save();
     }
-
     const isPasswordValid = await bcrypt.compare(password, user.hashedPassword);
 
     if (!isPasswordValid) {
       return res.status(401).json({ message: "Invalid password" });
     }
+
+    if (!user.isOTPVerified) {
+      return res.status(202).json({
+        isOTPVerified: false,
+        message: "Account unverified, please verify",
+        email: user.email,
+        phone: user.phone,
+      });
+    } else if (!user.isEmailVerified) {
+      return res.status(202).json({
+        isOTPVerified: true,
+        isEmailVerified: false,
+        message: "Account unverified, please verify",
+        email: user.email,
+        phone: user.phone,
+      });
+    }
+
 
     const token = jwt.sign(
       {
@@ -209,11 +233,56 @@ const validateEmail = async (req: Request, res: Response) => {
   }
 };
 
+const client = twilio(TWILIO_SID, TWILIO_TOKEN);
+
+const sendOTPtoPhone = async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.body;
+
+    const OTP = otpGenerator.generate(6, {
+      upperCaseAlphabets: false,
+      specialChars: false,
+      lowerCaseAlphabets: false,
+    });
+
+    const message = `Your OTP is ${OTP}`;
+
+    client.messages.create({
+      body: message,
+      from: TWILIO_PHONE,
+      to: TWILIO_RECEIVER_PHONE,
+    });
+
+    const otpDocument = new OTPModel({
+      phone: TWILIO_RECEIVER_PHONE,
+      otp: OTP,
+    });
+
+    await otpDocument.save();
+    res.status(200).json({ message: "Successfully send OTP" });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+};
+
+const sendConfirmationLink = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    await generateConfirmLink(email);
+    res.status(200).json({ message: "success" });
+  } catch (e) {
+    res.status(400).json({ error: "something failed" });
+    console.error(e);
+  }
+};
+
 const verifyOTP = async (req: Request, res: Response) => {
   try {
     const { phone, enteredOTP, email }: VerifyOTPDTO = req.body;
 
     const otpDocument = await OTPModel.findOne({ phone });
+
     if (!otpDocument || otpDocument.otp !== enteredOTP) {
       return res.status(400).json({ error: "Invalid OTP" });
     }
@@ -274,5 +343,7 @@ export {
   verifyOTP,
   verifyEmail,
   validatePhone,
-  validateEmail
+  validateEmail,
+  sendOTPtoPhone,
+  sendConfirmationLink,
 };

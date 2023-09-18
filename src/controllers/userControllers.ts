@@ -11,6 +11,7 @@ import { io } from "../index.js";
 import { createNotification } from "./notificationControllers.js";
 import {
   AcceptConnectionDTO,
+  DeleteUserDTO,
   GetNotificationsDTO,
   GetProfileDTO,
   GetUserDTO,
@@ -21,6 +22,8 @@ import {
   UpdateUserDTO,
 } from "../DTOs/userDTOs.js";
 import ChatModel from "../models/Chat.js";
+import PostModel from "../models/Posts.js";
+import CommentModel from "../models/Comments.js";
 
 async function getConnectionStatusHelper(senderId: string, receiverId: string) {
   const connectionStatus = await ConnectionRequest.findOne({
@@ -75,11 +78,16 @@ const getProfile = async (req: Request, res: Response) => {
         username: 1,
         profile: 1,
         cover: 1,
+        isActive: 1,
       }
     );
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isActive === false) {
+      return res.status(401).json({ message: "Account is not active" });
     }
 
     const rawPosts = await Post.find({ user: user._id })
@@ -116,40 +124,6 @@ const getProfile = async (req: Request, res: Response) => {
   }
 };
 
-// const getUser = async (req: Request, res: Response) => {
-//   try {
-//     // @ts-ignore
-//     const { _id }: GetUserDTO = req.user;
-
-//     const user = await User.findOne(
-//       {
-//         _id: _id,
-//       },
-//       {
-//         username: 1,
-//         firstName: 1,
-//         lastName: 1,
-//         email: 1,
-//         phone: 1,
-//         dateOfBirth: 1,
-//         profile: 1,
-//         cover: 1,
-//         title: 1,
-//       }
-//     )
-//       .populate({
-//         path: "connections",
-//         select: "firstName lastName username profile title",
-//       })
-//       .exec();
-
-//     res.status(200).json({ user });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Something went wrong" });
-//   }
-// };
-
 const getUser = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -173,7 +147,8 @@ const getUser = async (req: Request, res: Response) => {
     )
       .populate({
         path: "connections",
-        select: "firstName lastName username profile title",
+        select: "firstName lastName username profile title isActive",
+        match: { isActive: true },
       })
       .exec();
 
@@ -198,10 +173,15 @@ const getUser = async (req: Request, res: Response) => {
 
     const chatsInfo = await Promise.all(chatInfoPromises);
 
+    const userWithGroups = await User.findById(_id).populate({
+      path: "groupChats",
+      select: "title _id",
+    });
 
     const combinedData = {
-      user: user, 
+      user: user,
       chatInfo: chatsInfo,
+      groupChats: userWithGroups?.groupChats,
     };
 
     res.status(200).json({ combinedData });
@@ -470,16 +450,18 @@ const getConnections = async (req: Request, res: Response) => {
     // @ts-ignore
     const userId: mongoose.Types.ObjectId = req.user._id;
 
-    const user = await User.findById(userId).populate(
-      "connections",
-      "username profile cover firstName lastName title"
-    );
+    const user = await User.findById(userId).populate({
+      path: "connections",
+      select: "username profile cover firstName lastName title isActive",
+      match: { isActive: true }, // Filter out inactive connections
+    });
 
     if (!user) {
       throw new Error("User not found");
     }
 
     const connections = user.connections;
+
     res.status(200).json(connections);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -515,23 +497,86 @@ const getRecommendations = async (req: Request, res: Response) => {
 
 const searchForUsers = async (req: Request, res: Response) => {
   try {
-    const { searchText }: SearchForUsersDTO = req.body;
+    const { searchText, page }: SearchForUsersDTO = req.body;
+    const pageSize = 7; 
+
+    const skip = (page - 1) * pageSize; 
 
     const searchResults = await User.find(
       {
-        $or: [
-          { firstName: { $regex: searchText, $options: "i" } },
-          { lastName: { $regex: searchText, $options: "i" } },
-          { username: { $regex: searchText, $options: "i" } },
+        $and: [
+          {
+            $or: [
+              { firstName: { $regex: searchText, $options: "i" } },
+              { lastName: { $regex: searchText, $options: "i" } },
+              { username: { $regex: searchText, $options: "i" } },
+            ],
+          },
+          { isActive: true }, 
         ],
       },
       "firstName lastName username profile cover title"
-    );
+    )
+      .skip(skip)
+      .limit(pageSize);
 
     res.json(searchResults);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const deactivateAccount = async (req: Request, res: Response) => {
+  try {
+    const userId: string = req.body.userId;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    user.isActive = false;
+    await user.save();
+
+    res.clearCookie("access-token");
+    return res
+      .status(200)
+      .json({ success: true, message: "User deactivated successfully" });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};
+
+const deleteAccount = async (req: Request, res: Response) => {
+  try {
+    const { userId }: DeleteUserDTO = req.body;
+
+    await PostModel.deleteMany({ user: userId });
+    await CommentModel.deleteMany({ user: userId });
+    await NotificationModel.deleteMany({ userId: userId });
+    await NotificationModel.deleteMany({ senderId: userId });
+    await ChatModel.deleteMany({ participants: userId });
+
+    await User.deleteOne({ _id: userId });
+
+    res.clearCookie("access-token");
+    return res
+      .status(200)
+      .json({ success: true, message: "User deleted successfully" });
+  } catch (e: any) {
+    console.error(e);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "An error occurred while deleting the user",
+      });
   }
 };
 
@@ -547,4 +592,6 @@ export {
   getConnections,
   searchForUsers,
   getRecommendations,
+  deactivateAccount,
+  deleteAccount,
 };

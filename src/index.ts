@@ -10,6 +10,7 @@ import http from "http";
 import { Server } from "socket.io";
 import adminRouter from "./routes/admin/adminRouter.js";
 import chatRouter from "./routes/chat/chatRouter.js";
+import groupChatRouter from "./routes/groupChat/groupChatRouter.js";
 
 connectDB();
 
@@ -39,12 +40,21 @@ io.on("connection", (socket) => {
     socket.join(room);
   });
 
+  socket.on("join-group", (userId, selectedGroup) => {
+    socket.join(selectedGroup)
+  })
+
   socket.on("message-typing", (item) => {
     io.to(item.receiverId).emit("sender-typing", {
       chatIdentifier: item.chatIdentifier,
       message: item.message,
     })
   })
+
+  socket.on("sender-typing-group", (selectedGroup, name, message) => {
+    socket.to(selectedGroup).emit("someone-typing-group", name, message)
+  })
+
 });
 
 app.use(cookieParser());
@@ -58,6 +68,7 @@ app.use("/user", userRouter);
 app.use("/post", postRouter);
 app.use("/admin", adminRouter)
 app.use("/chat", chatRouter)
+app.use("/group-chat", groupChatRouter)
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Express + TypeScript Server");

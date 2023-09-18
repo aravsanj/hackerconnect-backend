@@ -1,4 +1,10 @@
-import mongoose from 'mongoose'
+import mongoose, { Document, Model } from 'mongoose';
+
+interface IOtp extends Document {
+  phone: string;
+  otp: string;
+  createdAt: Date;
+}
 
 const otpSchema = new mongoose.Schema({
   phone: {
@@ -15,6 +21,18 @@ const otpSchema = new mongoose.Schema({
   },
 });
 
-const OTPModel = mongoose.model('OTP', otpSchema);
+otpSchema.pre('save', async function (next) {
+  try {
+    const existingOtp = await (this.constructor as Model<IOtp>).findOne({ phone: this.phone });
+    if (existingOtp) {
+      await (this.constructor as Model<IOtp>).deleteOne({ phone: this.phone });
+    }
+    next();
+  } catch (error: any) {
+    console.error(error)
+  }
+});
 
-export default OTPModel
+const OTPModel = mongoose.model<IOtp>('OTP', otpSchema);
+
+export default OTPModel;

@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
     },
     lastName: {
       type: String,
-      require: true,
+      required: true,
     },
     username: {
       type: String,
@@ -17,27 +17,27 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      require: true,
+      required: true, 
       unique: true,
     },
     phone: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
     },
     location: String,
     dateOfBirth: {
       type: Date,
-      require: true,
+      required: true,
     },
     isOTPVerified: {
       type: Boolean,
-      require: true,
+      required: true,
       default: false,
     },
     isEmailVerified: {
       type: Boolean,
-      require: true,
+      required: true,
       default: false,
     },
     title: String,
@@ -57,13 +57,11 @@ const userSchema = new mongoose.Schema(
     },
     isBlocked: Boolean,
     isVerified: Boolean,
-    isActive: Boolean,
+    isActive: { type: Boolean, default: true, required: true },
     connectionRequests: [
       { type: mongoose.Schema.Types.ObjectId, ref: "ConnectionRequest" },
     ],
     connections: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    followers: Array,
-    following: Array,
     blockedUsers: Array,
     posts: Array,
     notifications: Array,
@@ -72,6 +70,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    groupChats: [{ type: mongoose.Schema.Types.ObjectId, ref: "GroupChat" }],
   },
   { timestamps: true }
 );

@@ -1,11 +1,8 @@
-import express, { Request, Response } from "express";
+import { Request, Response } from "express";
 import { initiateChat } from "../helpers/chat.helper.js";
 import { getMessageDTO, sendMessageDTO } from "../DTOs/chatDTO.js";
 import ChatModel from "../models/Chat.js";
 import { io } from "../index.js";
-
-const app = express();
-app.use(express.json());
 
 const sendMessage = async (req: Request, res: Response) => {
   try {

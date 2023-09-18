@@ -59,20 +59,23 @@ const getFeedPosts = async (req: Request, res: Response) => {
     }).distinct("_id");
 
     const rawPosts = await Post.find({
-      $or: [
-        { user: { $in: connectionIds } },
-        { user: _id },
-      ],
+      $or: [{ user: { $in: connectionIds } }, { user: _id }],
       _id: { $nin: reportedPostIds },
     })
-      .populate("user", "username profile firstName lastName")
+      .populate({
+        path: "user",
+        select: "username profile firstName lastName isActive", // Select multiple fields
+      })
       .populate("likes", "username profile firstName lastName")
       .sort({ createdAt: -1 })
       .skip((page - 1) * perPage)
       .limit(perPage)
       .exec();
 
-    const posts = rawPosts.map((post) => {
+    // @ts-ignore
+    const activeUsersPosts = rawPosts.filter((post) => post.user.isActive);
+
+    const posts = activeUsersPosts.map((post) => {
       const userHasLiked = post.likes.some((likedUserId) =>
         likedUserId.equals(_id)
       );
@@ -89,7 +92,6 @@ const getFeedPosts = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Something went wrong" });
   }
 };
-
 
 const getPost = async (req: Request, res: Response) => {
   try {
@@ -170,7 +172,14 @@ const likePost = async (req: Request, res: Response) => {
 
 const addComment = async (req: Request, res: Response) => {
   try {
-    const { postId, userId: senderId, content }: AddCommentDTO = req.body;
+    const {
+      postId,
+      userId: senderId,
+      content,
+      mentions,
+    }: AddCommentDTO = req.body;
+
+    console.log(mentions);
 
     const post = await Post.findById(postId)
       .populate({ path: "user", select: "_id" })
@@ -211,6 +220,20 @@ const addComment = async (req: Request, res: Response) => {
 
     io.to(userId.toString()).emit("notification");
 
+    if (mentions.length !== 0) {
+      for (const mention of mentions) {
+        await createNotification(
+          mention.id,
+          NotificationType.MENTION,
+          postId,
+          senderId,
+          "Someone just mentioned you!"
+        );
+
+        io.to(mention.id.toString()).emit("notification");
+      }
+    }
+
     return res
       .status(201)
       .json({ message: "Comment added successfully", comment: postedComment });
@@ -243,14 +266,21 @@ const getComments = async (req: Request, res: Response) => {
 
 const searchPosts = async (req: Request, res: Response) => {
   try {
-    const { searchText }: SearchPostsDTO = req.body;
+    const { searchText, page }: SearchPostsDTO = req.body;
+    const pageSize = 5;
 
-    const postResults = await Post.find({
+    const skip = (page - 1) * pageSize;
+
+    const rawPosts = await Post.find({
       content: { $regex: searchText, $options: "i" },
     })
-      .populate("user", "firstName lastName profile username")
+      .populate("user", "firstName lastName profile username isActive")
       .select("content")
-      .limit(5);
+      .skip(skip)
+      .limit(pageSize);
+
+    // @ts-ignore
+    const postResults = rawPosts.filter((post) => post.user.isActive);
 
     res.json(postResults);
   } catch (error) {
@@ -258,6 +288,7 @@ const searchPosts = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 const reportPost = async (req: Request, res: Response) => {
   try {
@@ -290,7 +321,6 @@ const reportPost = async (req: Request, res: Response) => {
       .json({ message: "An error occurred while reporting the post" });
   }
 };
-
 
 export {
   createPost,
