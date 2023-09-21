@@ -7,6 +7,7 @@
   "scripts": {
     "build": "npm install && npx tsc",
     "start": "npm run build && node dist/index.js",
+    "start-prebuilt": "node dist/index.js",
     "dev": "npx nodemon"
   },
   "author": "",
