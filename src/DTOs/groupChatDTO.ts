@@ -6,10 +6,19 @@ export interface initiateGroupChatDTO {
   admins: [Types.ObjectId];
 }
 
+interface MentionItem {
+  display: string;
+  id: Types.ObjectId;
+  childIndex: number;
+  index: number;
+  plainTextIndex: number;
+}
+
 export interface sendMessageDTO {
   chatId: Types.ObjectId;
   senderId: Types.ObjectId;
   messageText: string;
+  mentions: MentionItem[]
 }
 
 export interface getGroupMessagesDTO {

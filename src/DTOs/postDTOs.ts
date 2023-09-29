@@ -29,6 +29,10 @@ export interface AddCommentDTO {
   mentions: MentionItem[]
 }
 
+export interface AddReplyDTO extends AddCommentDTO {
+  parentCommentId: mongoose.Types.ObjectId
+}
+
 export interface GetCommentsDTO {
   postId: mongoose.Types.ObjectId;
   currentPage: number;

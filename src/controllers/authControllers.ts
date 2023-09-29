@@ -23,6 +23,7 @@ import {
 import otpGenerator from "otp-generator";
 import twilio from "twilio";
 import mongoose from "mongoose";
+import { RESET_SECRET } from "../config/mailer.js";
 
 type userData = {
   firstName: string;
@@ -63,7 +64,6 @@ const Register = async (req: Request, res: Response) => {
     const newUser = new User(userData);
 
     await newUser.save();
-
 
     res
       .status(201)
@@ -121,7 +121,6 @@ const Login = async (req: Request, res: Response) => {
         phone: user.phone,
       });
     }
-
 
     const token = jwt.sign(
       {
@@ -245,13 +244,13 @@ const sendOTPtoPhone = async (req: Request, res: Response) => {
       lowerCaseAlphabets: false,
     });
 
-    const message = `Your OTP is ${OTP}`;
+    // const message = `Your OTP is ${OTP}`;
 
-    client.messages.create({
-      body: message,
-      from: TWILIO_PHONE,
-      to: TWILIO_RECEIVER_PHONE,
-    });
+    // client.messages.create({
+    //   body: message,
+    //   from: TWILIO_PHONE,
+    //   to: TWILIO_RECEIVER_PHONE,
+    // });
 
     const otpDocument = new OTPModel({
       phone: TWILIO_RECEIVER_PHONE,
@@ -283,7 +282,16 @@ const verifyOTP = async (req: Request, res: Response) => {
 
     const otpDocument = await OTPModel.findOne({ phone });
 
-    if (!otpDocument || otpDocument.otp !== enteredOTP) {
+    if (!otpDocument) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    if (otpDocument.expires <= new Date()) {
+      await OTPModel.deleteOne({ phone });
+      return res.status(400).json({ error: "OTP has expired" });
+    }
+
+    if (otpDocument.otp !== enteredOTP) {
       return res.status(400).json({ error: "Invalid OTP" });
     }
 
@@ -301,9 +309,15 @@ const verifyOTP = async (req: Request, res: Response) => {
 };
 
 const verifyEmail = async (req: Request, res: Response) => {
-  const userId: mongoose.Types.ObjectId = req.body.userId;
-
   try {
+    const { userId, token } = req.body;
+
+    jwt.verify(token, RESET_SECRET, (err: any, user: any) => {
+      if (err) {
+        throw new Error("timeout");
+      }
+    });
+
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: { isEmailVerified: true } },
@@ -314,13 +328,13 @@ const verifyEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    return res.json({
+    res.status(200).json({
       message: "Email verification updated successfully",
       user,
     });
   } catch (error) {
     console.error("Error updating email verification:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(401).json({ message: "timeout" });
   }
 };
 

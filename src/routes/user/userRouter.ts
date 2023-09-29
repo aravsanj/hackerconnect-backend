@@ -14,6 +14,10 @@ import {
   getRecommendations,
   deactivateAccount,
   deleteAccount,
+  sendLiveNotifications,
+  blockUser,
+  getBlockedUsers,
+  unblockUser,
 } from "../../controllers/userControllers.js";
 import multer from "multer";
 import {
@@ -40,9 +44,15 @@ userRouter.post("/removeConnection", verifyJWT, removeConnection);
 userRouter.get("/getConnections", verifyJWT, getConnections);
 userRouter.get("/getRecommendations", verifyJWT, getRecommendations);
 
+userRouter.post("/blockUser", verifyJWT, blockUser);
+
+userRouter.post("/unblockUser", verifyJWT, unblockUser);
+
+userRouter.post("/getBlockedUsers", verifyJWT, getBlockedUsers);
+
 userRouter.post("/search", verifyJWT, searchForUsers);
 
-userRouter.get("/:username", getProfile);
+userRouter.get("/:username", verifyJWT, getProfile);
 
 userRouter.post(
   "/uploadProfile",
@@ -64,7 +74,9 @@ userRouter.post(
   }
 );
 
-userRouter.post("/deactivate", deactivateAccount);
-userRouter.post("/delete", deleteAccount)
+userRouter.post("/sendLiveRequests", verifyJWT, sendLiveNotifications);
+
+userRouter.post("/deactivate", verifyJWT, deactivateAccount);
+userRouter.post("/delete", verifyJWT, deleteAccount);
 
 export default userRouter;

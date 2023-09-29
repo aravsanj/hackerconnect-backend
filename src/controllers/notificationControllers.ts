@@ -9,6 +9,7 @@ async function createNotification(
   type: NotificationType,
   relatedId: mongoose.Types.ObjectId | null,
   senderId: mongoose.Types.ObjectId,
+  roomName: string | null = null,
   message: string
 ) {
   const notification = new NotificationModel({
@@ -17,6 +18,7 @@ async function createNotification(
     postId: type === NotificationType.LIKE || NotificationType.COMMENT ? relatedId : undefined,
     requestId: type === NotificationType.CONNECTION_REQUEST ? relatedId: undefined,
     senderId: senderId,
+    roomName,
     message,
   });
 

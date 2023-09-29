@@ -11,6 +11,7 @@ import {
 import User from "../models/User.js";
 import {
   AddCommentDTO,
+  AddReplyDTO,
   CreatePostDTO,
   GetCommentsDTO,
   GetFeedPostsDTO,
@@ -18,6 +19,7 @@ import {
   ReportPostDTO,
   SearchPostsDTO,
 } from "../DTOs/postDTOs.js";
+import CommentModel from "../models/Comments.js";
 
 const createPost = async (req: Request, res: Response) => {
   try {
@@ -153,6 +155,7 @@ const likePost = async (req: Request, res: Response) => {
           NotificationType.LIKE,
           postId,
           senderId,
+          null,
           "Your post was liked!"
         );
       }
@@ -178,8 +181,6 @@ const addComment = async (req: Request, res: Response) => {
       content,
       mentions,
     }: AddCommentDTO = req.body;
-
-    console.log(mentions);
 
     const post = await Post.findById(postId)
       .populate({ path: "user", select: "_id" })
@@ -210,15 +211,18 @@ const addComment = async (req: Request, res: Response) => {
       .populate("user", "username profile firstName lastName")
       .exec();
 
-    await createNotification(
-      userId,
-      NotificationType.COMMENT,
-      postId,
-      senderId,
-      "Your have a new comment!"
-    );
+    if (userId !== senderId) {
+      await createNotification(
+        userId,
+        NotificationType.COMMENT,
+        postId,
+        senderId,
+        null,
+        "Your have a new comment!"
+      );
 
-    io.to(userId.toString()).emit("notification");
+      io.to(userId.toString()).emit("notification");
+    }
 
     if (mentions.length !== 0) {
       for (const mention of mentions) {
@@ -227,6 +231,104 @@ const addComment = async (req: Request, res: Response) => {
           NotificationType.MENTION,
           postId,
           senderId,
+          null,
+          "Someone just mentioned you!"
+        );
+
+        io.to(mention.id.toString()).emit("notification");
+      }
+    }
+
+    return res
+      .status(201)
+      .json({ message: "Comment added successfully", comment: postedComment });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+const deleteComment = async (req: Request, res: Response) => {
+  try {
+    const { commentId } = req.body;
+
+    const comment = await CommentModel.findById(commentId);
+
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    await CommentModel.findByIdAndDelete(commentId);
+
+    res.json({ message: "Comment deleted successfully", comment: commentId });
+  } catch (error) {
+    console.error("Error deleting comment:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const addReply = async (req: Request, res: Response) => {
+  try {
+    const {
+      postId,
+      userId: senderId,
+      content,
+      mentions,
+      parentCommentId,
+    }: AddReplyDTO = req.body;
+
+    const post = await Post.findById(postId)
+      .populate({ path: "user", select: "_id" })
+      .exec();
+
+    const userId: mongoose.Types.ObjectId = post?.user
+      ._id as mongoose.Types.ObjectId;
+
+    if (!post || !userId) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const newComment = new Comment({
+      user: senderId,
+      content,
+      parentComment: parentCommentId,
+      post: postId,
+      type: "child",
+    });
+
+    await newComment.save();
+
+    post.comments.push(newComment._id);
+    await post.save();
+
+    const postedComment = await Comment.findOne({
+      post: postId,
+      _id: newComment._id,
+    })
+      .populate("user", "username profile firstName lastName")
+      .exec();
+
+    if (userId !== senderId) {
+      await createNotification(
+        userId,
+        NotificationType.COMMENT,
+        postId,
+        senderId,
+        null,
+        "Your have a new comment!"
+      );
+
+      io.to(userId.toString()).emit("notification");
+    }
+
+    if (mentions.length !== 0) {
+      for (const mention of mentions) {
+        await createNotification(
+          mention.id,
+          NotificationType.MENTION,
+          postId,
+          senderId,
+          null,
           "Someone just mentioned you!"
         );
 
@@ -250,7 +352,31 @@ const getComments = async (req: Request, res: Response) => {
 
     const skip = (currentPage - 1) * itemsPerPage;
 
-    const commentsForPost = await Comment.find({ post: postId })
+    const commentsForPost = await Comment.find({ post: postId, type: "parent" })
+      .populate("user", "username profile firstName lastName")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(itemsPerPage)
+      .exec();
+
+    return res.status(200).json({ comments: commentsForPost });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+const getReplies = async (req: Request, res: Response) => {
+  try {
+    const { parentCommentId, currentPage }: any = req.body;
+    const itemsPerPage = 3;
+
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const commentsForPost = await Comment.find({
+      parentComment: parentCommentId,
+      type: "child",
+    })
       .populate("user", "username profile firstName lastName")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -288,7 +414,6 @@ const searchPosts = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 const reportPost = async (req: Request, res: Response) => {
   try {
@@ -329,6 +454,9 @@ export {
   getPost,
   addComment,
   getComments,
+  deleteComment,
   searchPosts,
   reportPost,
+  addReply,
+  getReplies,
 };

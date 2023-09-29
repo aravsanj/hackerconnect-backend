@@ -12,9 +12,9 @@ const generateConfirmLink = async (email: string) => {
     throw new Error("Email not found");
   }
 
-  const token = jwt.sign({ id: user._id }, RESET_SECRET, { expiresIn: 3600 });
+  const token = jwt.sign({ id: user._id }, RESET_SECRET, { expiresIn: 300 });
 
-  let transporter = nodemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
       user: EMAIL,
@@ -22,7 +22,7 @@ const generateConfirmLink = async (email: string) => {
     },
   });
 
-  let mailOptions = {
+  const mailOptions = {
     from: EMAIL,
     to: email,
     subject: "Konnect - Your confirm link",
@@ -36,6 +36,7 @@ const generateConfirmLink = async (email: string) => {
       console.log("Email sent: " + info.response);
     }
   });
+  
 };
 
 export default generateConfirmLink;

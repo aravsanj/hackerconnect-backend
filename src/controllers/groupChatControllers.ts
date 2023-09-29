@@ -2,7 +2,7 @@ import {
   addParticipantsDTO,
   getGroupMessagesDTO,
   initiateGroupChatDTO,
-  removeParticipantDTO
+  removeParticipantDTO,
 } from "../DTOs/groupChatDTO";
 import GroupChatModel, {
   GroupChat,
@@ -13,6 +13,7 @@ import User from "../models/User.js";
 import { sendMessageDTO } from "../DTOs/groupChatDTO";
 import { Types } from "mongoose";
 import { io } from "../index.js";
+import MentionModel from "../models/Mentions.js";
 
 const initiateGroupChat = async (req: Request, res: Response) => {
   try {
@@ -42,7 +43,6 @@ const initiateGroupChat = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Could not initiate group chat" });
   }
 };
-
 
 const getGroupChatInfo = async (req: Request, res: Response) => {
   try {
@@ -110,7 +110,8 @@ async function sendMessageToGroupChat(
 
 const sendMessage = async (req: Request, res: Response) => {
   try {
-    const { chatId, senderId, messageText }: sendMessageDTO = req.body;
+    const { chatId, senderId, messageText, mentions }: sendMessageDTO =
+      req.body;
 
     if (!chatId || !senderId || !messageText) {
       return res.status(400).json({ error: "Invalid request data" });
@@ -123,9 +124,24 @@ const sendMessage = async (req: Request, res: Response) => {
     );
 
     if (newMessage) {
-      io.to(chatId.toString()).emit("group-message-received", {
-        newMessage
+      if (mentions.length !== 0) {
+        for (const mention of mentions) {
+          const mentionData = {
+            user: mention.id,
+            sender: senderId,
+            groupChat: chatId,
+            message: messageText,
+          };
 
+          const mentionDocument = new MentionModel(mentionData);
+          await mentionDocument.save();
+
+          io.to(mention.id.toString()).emit("group-mention");
+        }
+      }
+
+      io.to(chatId.toString()).emit("group-message-received", {
+        newMessage,
       });
 
       return res
@@ -148,21 +164,22 @@ const getGroupMessages = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid chat ID" });
     }
 
-    const chat: GroupChat | null = await GroupChatModel.findById(chatId).populate({
+    const chat: GroupChat | null = await GroupChatModel.findById(
+      chatId
+    ).populate({
       path: "messages.sender",
-      model: "User", 
-      select: "firstName lastName profile", 
+      model: "User",
+      select: "firstName lastName profile",
     });
-
 
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
 
     const messages = chat.messages.map((message: any) => ({
-      id: message._id, 
+      id: message._id,
       sender: {
-        id: message.sender._id, 
+        id: message.sender._id,
         name: `${message.sender.firstName} ${message.sender.lastName}`,
         avatarUrl: message.sender.profile,
       },
@@ -178,7 +195,7 @@ const getGroupMessages = async (req: Request, res: Response) => {
 
 const addParticipants = async (req: Request, res: Response) => {
   try {
-    const { chatId, userIds } : addParticipantsDTO = req.body;
+    const { chatId, userIds }: addParticipantsDTO = req.body;
 
     const chat: GroupChat | null = await GroupChatModel.findById(chatId);
 
@@ -205,9 +222,13 @@ const addParticipants = async (req: Request, res: Response) => {
     if (addedParticipants.length > 0) {
       await chat.save();
 
-      return res.status(200).json({ message: "Participants added successfully", chat });
+      return res
+        .status(200)
+        .json({ message: "Participants added successfully", chat });
     } else {
-      return res.status(400).json({ message: "All users are already participants" });
+      return res
+        .status(400)
+        .json({ message: "All users are already participants" });
     }
   } catch (error) {
     console.error("Error adding participants to chat:", error);
@@ -217,7 +238,7 @@ const addParticipants = async (req: Request, res: Response) => {
 
 const removeParticipant = async (req: Request, res: Response) => {
   try {
-    const { chatId, userId } : removeParticipantDTO = req.body;
+    const { chatId, userId }: removeParticipantDTO = req.body;
 
     const chat: GroupChat | null = await GroupChatModel.findById(chatId);
 
@@ -230,12 +251,11 @@ const removeParticipant = async (req: Request, res: Response) => {
     if (index !== -1) {
       chat.participants.splice(index, 1);
 
-      // Update the user's groupChats field
       const user = await User.findById(userId);
 
       if (user) {
         const chatIndex = user.groupChats.indexOf(chat._id);
-        
+
         if (chatIndex !== -1) {
           user.groupChats.splice(chatIndex, 1);
           await user.save();
@@ -244,9 +264,13 @@ const removeParticipant = async (req: Request, res: Response) => {
 
       await chat.save();
 
-      return res.status(200).json({ message: "Participant removed successfully", chat });
+      return res
+        .status(200)
+        .json({ message: "Participant removed successfully", chat });
     } else {
-      return res.status(400).json({ message: "User is not a participant in this chat" });
+      return res
+        .status(400)
+        .json({ message: "User is not a participant in this chat" });
     }
   } catch (error) {
     console.error("Error removing participant from chat:", error);
@@ -254,5 +278,74 @@ const removeParticipant = async (req: Request, res: Response) => {
   }
 };
 
+const getMentionedMessages = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
 
-export { initiateGroupChat, getGroupChatInfo, sendMessage, getGroupMessages, addParticipants, removeParticipant };
+    const mentionedMessages = await MentionModel.find({ user: userId })
+      .populate("sender", "profile username")
+      .populate("groupChat", "title")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(mentionedMessages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "An error occurred" });
+  }
+};
+
+const hasUnreadMessages = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+    const unreadMessage = await MentionModel.findOne({
+      user: userId,
+      hasRead: false,
+    });
+
+    if (unreadMessage) {
+      return res.json({ hasUnread: true });
+    } else {
+      return res.json({ hasUnread: false });
+    }
+  } catch (error) {
+     res.json({ message: "Error checking for unread messages:" });
+  }
+};
+
+const changeReadStatus = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+    const mentionedMessages = await MentionModel.find({
+      user: userId,
+      hasRead: false,
+    });
+
+    if (!mentionedMessages || mentionedMessages.length === 0) {
+      return res.status(404).json({ message: "Mentioned messages not found" });
+    }
+
+    for (const mentionedMessage of mentionedMessages) {
+      mentionedMessage.hasRead = true;
+      await mentionedMessage.save();
+    }
+
+    return res
+      .status(200)
+      .json({ message: "hasRead status updated successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export {
+  initiateGroupChat,
+  getGroupChatInfo,
+  sendMessage,
+  getGroupMessages,
+  addParticipants,
+  removeParticipant,
+  getMentionedMessages,
+  changeReadStatus,
+  hasUnreadMessages
+};

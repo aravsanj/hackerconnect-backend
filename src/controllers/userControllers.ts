@@ -62,6 +62,11 @@ const getProfile = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
     const { username }: GetProfileDTO = req.params;
+    // @ts-ignore
+    const { _id }: GetUserDTO = req.user;
+
+    const currentUser = await User.findById(_id);
+
     const cookies = req.cookies;
     const accessToken: string = cookies["access-token"];
 
@@ -79,11 +84,21 @@ const getProfile = async (req: Request, res: Response) => {
         profile: 1,
         cover: 1,
         isActive: 1,
+        blockedUsers: 1,
       }
     );
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (currentUser) {
+      if (
+        currentUser.blockedUsers.includes(user?._id) ||
+        user.blockedUsers.includes(currentUser._id)
+      ) {
+        return res.status(200).json({ blockedUser: true });
+      }
     }
 
     if (user.isActive === false) {
@@ -147,7 +162,7 @@ const getUser = async (req: Request, res: Response) => {
     )
       .populate({
         path: "connections",
-        select: "firstName lastName username profile title isActive",
+        select: "firstName lastName username profile title isActive isOnline",
         match: { isActive: true },
       })
       .exec();
@@ -191,6 +206,92 @@ const getUser = async (req: Request, res: Response) => {
   }
 };
 
+const blockUser = async (req: Request, res: Response) => {
+  try {
+    const { currentUserId, userIdToBlock } = req.body;
+
+    const currentUser = await User.findById(currentUserId);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "Current user doesn't exist." });
+    }
+
+    const userToBlock = await User.findById(userIdToBlock);
+
+    if (!userToBlock) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!currentUser.blockedUsers.includes(userIdToBlock)) {
+      currentUser.blockedUsers.push(userIdToBlock);
+
+      const index = currentUser.connections.indexOf(userIdToBlock);
+      if (index !== -1) {
+        currentUser.connections.splice(index, 1);
+      }
+
+      await currentUser.save();
+
+      const userToBlockIndex = userToBlock.connections.indexOf(currentUserId);
+      if (userToBlockIndex !== -1) {
+        userToBlock.connections.splice(userToBlockIndex, 1);
+        await userToBlock.save();
+      }
+
+      userToBlock.hasBlocked.push(currentUserId);
+
+      await userToBlock.save();
+
+      return res.status(200).json({ message: "User blocked successfully." });
+    } else {
+      return res.status(400).json({ message: "User is already blocked." });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+const unblockUser = async (req: Request, res: Response) => {
+  try {
+    const { currentUserId, userIdToUnblock } = req.body;
+
+    const currentUser = await User.findById(currentUserId);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "Current user doesn't exist." });
+    }
+
+    const userToUnblock = await User.findById(userIdToUnblock);
+
+    if (!userToUnblock) {
+      return res.status(404).json({ message: "User to unblock not found." });
+    }
+
+    const indexOfBlockedUser = currentUser.blockedUsers.indexOf(userIdToUnblock);
+
+    if (indexOfBlockedUser !== -1) {
+      currentUser.blockedUsers.splice(indexOfBlockedUser, 1);
+      await currentUser.save();
+
+      const indexOfBlockedByUser = userToUnblock.hasBlocked.indexOf(currentUserId);
+
+      if (indexOfBlockedByUser !== -1) {
+        userToUnblock.hasBlocked.splice(indexOfBlockedByUser, 1);
+        await userToUnblock.save();
+      }
+
+      return res.status(200).json({ message: "User unblocked successfully." });
+    } else {
+      return res.status(400).json({ message: "User is not blocked." });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
 const getNotifications = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -206,6 +307,7 @@ const getNotifications = async (req: Request, res: Response) => {
         message: 1,
         hasAccepted: 1,
         hasRead: 1,
+        roomName: 1,
       }
     )
       .populate("senderId", "username profile")
@@ -316,6 +418,7 @@ const sendConnection = async (req: Request, res: Response) => {
       NotificationType.CONNECTION_REQUEST,
       newRequest._id,
       senderId,
+      null,
       "You've a new connection request"
     );
     io.to(receiverId.toString()).emit("notification");
@@ -364,6 +467,7 @@ const acceptConnection = async (req: Request, res: Response) => {
         NotificationType.CONNECTION_REQUEST_ACCEPTED,
         null,
         connectionRequest.receiver,
+        null,
         "Your connection request was accepted"
       );
       io.to(connectionRequest.sender.toString()).emit("notification");
@@ -479,8 +583,23 @@ const getRecommendations = async (req: Request, res: Response) => {
         conn.toString()
       );
 
+      const blockedIds = currentUser.blockedUsers.map((conn) =>
+        conn.toString()
+      );
+
+      const hasBlockedIds = currentUser.hasBlocked.map((conn) =>
+        conn.toString()
+      );
+
       const nonConnectionUsers = await User.find({
-        _id: { $nin: [...connectionIds, currentUserId] },
+        _id: {
+          $nin: [
+            ...connectionIds,
+            ...blockedIds,
+            ...hasBlockedIds,
+            currentUserId,
+          ],
+        },
       })
         .limit(5)
         .select("profile firstName lastName username")
@@ -495,12 +614,47 @@ const getRecommendations = async (req: Request, res: Response) => {
   }
 };
 
+const getBlockedUsers = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    const currentUser = await User.findById(userId)
+      .populate("blockedUsers", "firstName lastName username profile")
+      .exec();
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "Current user not found" });
+    }
+
+    const blockedUsersInfo = currentUser.blockedUsers;
+
+    res.status(200).json(blockedUsersInfo);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 const searchForUsers = async (req: Request, res: Response) => {
   try {
     const { searchText, page }: SearchForUsersDTO = req.body;
-    const pageSize = 7; 
+    const pageSize = 7;
 
-    const skip = (page - 1) * pageSize; 
+    const skip = (page - 1) * pageSize;
+    // @ts-ignore
+    const currentUserId = req.user._id;
+
+    const currentUser = await User.findById(currentUserId);
+
+    const blockedUserIds = currentUser
+      ? currentUser.blockedUsers.map((user) => user.toString())
+      : [];
+
+    const usersWhoBlockedCurrentIds = currentUser
+      ? currentUser.hasBlocked.map((user) => user.toString())
+      : [];
+
+    const excludedUserIds = [...blockedUserIds, ...usersWhoBlockedCurrentIds];
 
     const searchResults = await User.find(
       {
@@ -512,7 +666,8 @@ const searchForUsers = async (req: Request, res: Response) => {
               { username: { $regex: searchText, $options: "i" } },
             ],
           },
-          { isActive: true }, 
+          { isActive: true },
+          { _id: { $nin: excludedUserIds } }, // Exclude both blocked users and users who have blocked the current user
         ],
       },
       "firstName lastName username profile cover title"
@@ -571,12 +726,36 @@ const deleteAccount = async (req: Request, res: Response) => {
       .json({ success: true, message: "User deleted successfully" });
   } catch (e: any) {
     console.error(e);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "An error occurred while deleting the user",
-      });
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while deleting the user",
+    });
+  }
+};
+
+const sendLiveNotifications = async (req: Request, res: Response) => {
+  try {
+    const { roomName, connections, senderId, userName } = req.body;
+
+    if (connections.length !== 0) {
+      for (const connection of connections) {
+        await createNotification(
+          connection._id,
+          NotificationType.LIVE,
+          null,
+          senderId,
+          roomName,
+          `${userName} just started a live!`
+        );
+
+        io.to(connection._id.toString()).emit("notification");
+      }
+    }
+
+    res.status(200).json({ message: "okay" });
+  } catch (e) {
+    console.error(e);
+    res.status(402).json({ message: "Something went wrong!" });
   }
 };
 
@@ -594,4 +773,8 @@ export {
   getRecommendations,
   deactivateAccount,
   deleteAccount,
+  sendLiveNotifications,
+  blockUser,
+  unblockUser,
+  getBlockedUsers
 };

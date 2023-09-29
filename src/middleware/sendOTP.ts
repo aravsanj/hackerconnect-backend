@@ -22,13 +22,13 @@ const sendOTP = async (req: Request, res: Response, next: NextFunction) => {
       lowerCaseAlphabets: false,
     });
 
-    const message = `Your OTP is ${OTP}`;
+    // const message = `Your OTP is ${OTP}`;
 
-    client.messages.create({
-      body: message,
-      from: TWILIO_PHONE,
-      to: TWILIO_RECEIVER_PHONE,
-    });
+    // client.messages.create({
+    //   body: message,
+    //   from: TWILIO_PHONE,
+    //   to: TWILIO_RECEIVER_PHONE,
+    // });
 
     const otpDocument = new OTPModel({
       phone: TWILIO_RECEIVER_PHONE,

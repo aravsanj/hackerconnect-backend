@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { SECRET } from "../config/jwt.js";
+import updateUserLastActivity from "../helpers/updateUserActivity.js";
 
 type User = {
   username?: string;
@@ -13,7 +14,6 @@ type newRequest = Request & {
 };
 
 function verifyJWT(req: newRequest, res: Response, next: NextFunction) {
-
   const accessToken = req.cookies["access-token"];
 
   if (!accessToken) {
@@ -24,7 +24,7 @@ function verifyJWT(req: newRequest, res: Response, next: NextFunction) {
     if (err) {
       return res.status(401).send({ isLoggedIn: false });
     }
-
+    updateUserLastActivity(user);
     req.user = user;
   });
   next();

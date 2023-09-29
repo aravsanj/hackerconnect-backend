@@ -11,15 +11,23 @@ import { Server } from "socket.io";
 import adminRouter from "./routes/admin/adminRouter.js";
 import chatRouter from "./routes/chat/chatRouter.js";
 import groupChatRouter from "./routes/groupChat/groupChatRouter.js";
+import cron from "node-cron"
+import markInactiveUsersOffline from "./helpers/markInactiveUsers.js";
 
 connectDB();
 
 const corsOptions = {
-  origin: function (origin: any, callback: any) {
-    const allowedOrigins = [ALLOWED_ORIGIN];
-    const isAllowed = allowedOrigins.includes(origin);
-    callback(null, isAllowed);
-  },
+  origin: [
+    "http://localhost:3000",
+    "http://ec2-3-214-28-97.compute-1.amazonaws.com",
+    "https://ec2-3-214-28-97.compute-1.amazonaws.com",
+    "http://3.214.28.97",
+    "http://3.214.28.97:3000",
+    "https://www.hackerconnect.io",
+    "http://www.hackerconnect.io",
+    "http://hackerconnect.io",
+    "https://hackerconnect.io",
+  ],
   optionsSuccessStatus: 200,
   credentials: true,
 };
@@ -41,20 +49,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join-group", (userId, selectedGroup) => {
-    socket.join(selectedGroup)
-  })
+    socket.join(selectedGroup);
+  });
 
   socket.on("message-typing", (item) => {
     io.to(item.receiverId).emit("sender-typing", {
       chatIdentifier: item.chatIdentifier,
       message: item.message,
-    })
-  })
+    });
+  });
 
   socket.on("sender-typing-group", (selectedGroup, name, message) => {
-    socket.to(selectedGroup).emit("someone-typing-group", name, message)
-  })
-
+    socket.to(selectedGroup).emit("someone-typing-group", name, message);
+  });
 });
 
 app.use(cookieParser());
@@ -66,9 +73,9 @@ app.options("*", cors(corsOptions));
 app.use("/auth", authRouter);
 app.use("/user", userRouter);
 app.use("/post", postRouter);
-app.use("/admin", adminRouter)
-app.use("/chat", chatRouter)
-app.use("/group-chat", groupChatRouter)
+app.use("/admin", adminRouter);
+app.use("/chat", chatRouter);
+app.use("/group-chat", groupChatRouter);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Express + TypeScript Server");
@@ -77,5 +84,7 @@ app.get("/", (req: Request, res: Response) => {
 server.listen(PORT, () => {
   console.log(`⚡️[server]: Server is running at localhost:${PORT}`);
 });
+
+cron.schedule('* 5 * * * *', markInactiveUsersOffline);
 
 export { io };
