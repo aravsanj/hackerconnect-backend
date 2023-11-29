@@ -5,8 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "npm install && npx tsc",
-    "start": "npm run build && node dist/index.js",
+    "build": "npx tsc",
+    "start": "node dist/index.js",
+    "build:prod": "ncc build ./dist/index.js -m -o prod",
+    "start:prod": "node prod/index.js",
     "start-prebuilt": "node dist/index.js",
     "dev": "npx nodemon"
   },

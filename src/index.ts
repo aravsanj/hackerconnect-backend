@@ -11,23 +11,12 @@ import { Server } from "socket.io";
 import adminRouter from "./routes/admin/adminRouter.js";
 import chatRouter from "./routes/chat/chatRouter.js";
 import groupChatRouter from "./routes/groupChat/groupChatRouter.js";
-import cron from "node-cron"
-import markInactiveUsersOffline from "./helpers/markInactiveUsers.js";
+import getUserConnectionIds from "./helpers/getUserConnections.js";
 
 connectDB();
 
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://ec2-3-214-28-97.compute-1.amazonaws.com",
-    "https://ec2-3-214-28-97.compute-1.amazonaws.com",
-    "http://3.214.28.97",
-    "http://3.214.28.97:3000",
-    "https://www.hackerconnect.io",
-    "http://www.hackerconnect.io",
-    "http://hackerconnect.io",
-    "https://hackerconnect.io",
-  ],
+  origin: ALLOWED_ORIGIN,
   optionsSuccessStatus: 200,
   credentials: true,
 };
@@ -43,9 +32,13 @@ const io = new Server(server, {
   },
 });
 
-io.on("connection", (socket) => {
-  socket.on("join", (room) => {
+io.on("connection",  (socket) => {
+  socket.on("join", async (room) => {
     socket.join(room);
+    const connectionIds = await getUserConnectionIds(room);
+    for (const id of connectionIds) {
+      io.to(id).emit("connection-online", room)
+    }
   });
 
   socket.on("join-group", (userId, selectedGroup) => {
@@ -85,6 +78,6 @@ server.listen(PORT, () => {
   console.log(`⚡️[server]: Server is running at localhost:${PORT}`);
 });
 
-cron.schedule('* 5 * * * *', markInactiveUsersOffline);
+// cron.schedule("* 5 * * * *", markInactiveUsersOffline);
 
 export { io };

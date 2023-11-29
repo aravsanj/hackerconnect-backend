@@ -21,7 +21,7 @@ import {
   TWILIO_TOKEN,
 } from "../config/twilio.js";
 import otpGenerator from "otp-generator";
-import twilio from "twilio";
+// import twilio from "twilio";
 import mongoose from "mongoose";
 import { RESET_SECRET } from "../config/mailer.js";
 
@@ -232,7 +232,7 @@ const validateEmail = async (req: Request, res: Response) => {
   }
 };
 
-const client = twilio(TWILIO_SID, TWILIO_TOKEN);
+// const client = twilio(TWILIO_SID, TWILIO_TOKEN);
 
 const sendOTPtoPhone = async (req: Request, res: Response) => {
   try {

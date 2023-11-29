@@ -3,7 +3,7 @@ import User from "../models/User.js";
 
 async function markInactiveUsersOffline() {
   const inactiveThreshold = new Date(Date.now() - 5 * 60 * 1000);
-  console.log("called");
+  console.log("called inactive function");
 
   try {
     const inactiveUsers = await User.find({

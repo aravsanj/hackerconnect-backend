@@ -14,6 +14,7 @@ import { sendMessageDTO } from "../DTOs/groupChatDTO";
 import { Types } from "mongoose";
 import { io } from "../index.js";
 import MentionModel from "../models/Mentions.js";
+import mongoose from "mongoose";
 
 const initiateGroupChat = async (req: Request, res: Response) => {
   try {
@@ -153,6 +154,69 @@ const sendMessage = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error sending message:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+
+const fetchSeenStatus = async (req: Request, res: Response) => {
+  try {
+    const { groupChatId, messageId } = req.body;
+
+    const groupChat: GroupChat | null = await GroupChatModel.findById(groupChatId);
+
+    if (!groupChat) {
+      return res.status(404).json({ error: "Group chat not found" });
+    }
+    //@ts-ignore 
+    const message = groupChat.messages.find((msg) => msg._id.equals(messageId));
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found in the group chat" });
+    }
+    res.json({ seenBy: message.seenBy });
+  } catch (error) {
+    console.error("Error retrieving seenBy array:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const markAllMessagesAsSeen = async (req: Request, res: Response) => {
+  try {
+    const { chatId, userId, firstName, lastName, profile, userName } = req.body;
+
+    const groupChat = await GroupChatModel.findById(chatId);
+
+    if (!groupChat) {
+      return res.status(404).json({ message: "Group chat not found" });
+    }
+
+    const seenByObject = {
+      user: userId,
+      firstName,
+      lastName,
+      profile,
+      username: userName,
+    };
+
+    groupChat.messages.forEach((message: GroupMessage) => { 
+      if (message.sender.toString() !== userId && message !== undefined) {
+        // @ts-ignore
+        const userExistsInSeenBy = message?.seenBy.some((seenBy) => seenBy.username === userName);
+
+        if (!userExistsInSeenBy) {
+          message.seenBy = message.seenBy || [];
+          message.seenBy.push(seenByObject);
+        }
+      }
+    });
+
+    await groupChat.save();
+
+    return res.status(200).json({ message: "SeenBy updated successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -308,7 +372,7 @@ const hasUnreadMessages = async (req: Request, res: Response) => {
       return res.json({ hasUnread: false });
     }
   } catch (error) {
-     res.json({ message: "Error checking for unread messages:" });
+    res.json({ message: "Error checking for unread messages:" });
   }
 };
 
@@ -347,5 +411,7 @@ export {
   removeParticipant,
   getMentionedMessages,
   changeReadStatus,
-  hasUnreadMessages
+  hasUnreadMessages,
+  markAllMessagesAsSeen,
+  fetchSeenStatus,
 };

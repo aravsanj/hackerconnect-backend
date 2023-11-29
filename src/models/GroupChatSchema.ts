@@ -3,6 +3,7 @@ import mongoose, { Document, Schema, Types } from "mongoose";
 export interface GroupMessage {
   sender: string | Types.ObjectId;
   message: string;
+  seenBy?: any[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -19,15 +20,25 @@ const groupMessageSchema = new Schema<GroupMessage>(
   {
     sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
     message: { type: String, required: true },
+    seenBy: [
+      {
+        firstName: String,
+        lastName: String,
+        profile: String,
+        username: String,
+      },
+    ],
   },
-  { _id: false, timestamps: true }
+  { timestamps: true }
 );
 
 const groupChatSchema = new Schema<GroupChat>(
   {
     title: { type: String, required: true },
-    participants: [{ type: Schema.Types.ObjectId, ref: "User", required: true }],
-    admins: [{ type: Schema.Types.ObjectId, ref: "User", required: true }], 
+    participants: [
+      { type: Schema.Types.ObjectId, ref: "User", required: true },
+    ],
+    admins: [{ type: Schema.Types.ObjectId, ref: "User", required: true }],
     messages: [groupMessageSchema],
     lastMessage: groupMessageSchema,
   },

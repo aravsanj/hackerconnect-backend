@@ -7,10 +7,10 @@ import {
   TWILIO_TOKEN,
 } from "../config/twilio.js";
 import otpGenerator from "otp-generator";
-import twilio from "twilio";
+// import twilio from "twilio";
 import OTPModel from "../models/OTP.js";
 
-const client = twilio(TWILIO_SID, TWILIO_TOKEN);
+// const client = twilio(TWILIO_SID, TWILIO_TOKEN);
 
 const sendOTP = async (req: Request, res: Response, next: NextFunction) => {
   try {
