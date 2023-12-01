@@ -11,12 +11,12 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v3
       - name: Login to docker hub
-        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }} 
+        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }}
       - name: Build docker image
         run: docker build -t aravsanj/hackerconnect-backend .
       - name: Publish image to docker hub
         run: docker push aravsanj/hackerconnect-backend:latest
-        
+
   deploy:
     needs: build
     runs-on: [self-hosted]
@@ -26,4 +26,4 @@ jobs:
       - name: Delete old container
         run: docker rm -f hackerconnect-backend-container
       - name: Run docker container
-        run: docker run -d -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
+        run: docker run -e PORT=${{ secrets.PORT }} MONGO_URI=${{ secrets.MONGO_URI }} -d -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
