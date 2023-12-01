@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const MONGO_URI = "mongodb://0.0.0.0:27017/HackerConnect"
+const MONGO_URI = "mongodb://localhost:27017/HackerConnect"
 
 
 const connectDB = async () => {
@@ -13,7 +13,7 @@ const connectDB = async () => {
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error: any) {
     console.error(`Error: ${error.message}`);
-    process.exit();
+    // process.exit();
   }
 };
 
