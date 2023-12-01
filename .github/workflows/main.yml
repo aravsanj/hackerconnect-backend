@@ -26,4 +26,6 @@ jobs:
       - name: Delete old container
         run: docker rm -f hackerconnect-backend-container
       - name: Run docker container
-        run: docker run -d  --env PORT=${{ secrets.PORT }} --env MONGO_URI=${{ secrets.MONGO_URI }} -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
+        run: docker run -d  --env PORT=3001 --env MONGO_URI=mongodb+srv://saravind436:ZSl4e3xWR4xijdtr@konnectcluster.iu9atgy.mongodb.net/?retryWrites=true&w=majority -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
+
+        # run: docker run -d  --env PORT=${{ secrets.PORT }} --env MONGO_URI=${{ secrets.MONGO_URI }} -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
