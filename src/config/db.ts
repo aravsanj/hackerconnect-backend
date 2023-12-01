@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI as string
+const MONGO_URI = "mongodb://127.0.0.1:27017/HackerConnect"
 
 
 const connectDB = async () => {

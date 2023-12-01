@@ -4,7 +4,7 @@ import userRouter from "./routes/user/userRouter.js";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import cookieParser from "cookie-parser";
-import { ALLOWED_ORIGIN, PORT } from "./config/origin.js";
+import { ALLOWED_ORIGIN } from "./config/origin.js";
 import postRouter from "./routes/post/postRouter.js";
 import http from "http";
 import { Server } from "socket.io";
@@ -12,6 +12,8 @@ import adminRouter from "./routes/admin/adminRouter.js";
 import chatRouter from "./routes/chat/chatRouter.js";
 import groupChatRouter from "./routes/groupChat/groupChatRouter.js";
 import getUserConnectionIds from "./helpers/getUserConnections.js";
+
+const PORT = 3001;
 
 connectDB();
 
