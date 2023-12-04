@@ -4,7 +4,7 @@ import userRouter from "./routes/user/userRouter.js";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import cookieParser from "cookie-parser";
-import { ALLOWED_ORIGIN } from "./config/origin.js";
+import { ALLOWED_ORIGIN, ALLOWED_ORIGIN_AWS } from "./config/origin.js";
 import postRouter from "./routes/post/postRouter.js";
 import http from "http";
 import { Server } from "socket.io";
@@ -18,7 +18,7 @@ const PORT = 3001;
 connectDB();
 
 const corsOptions = {
-  origin: ALLOWED_ORIGIN,
+  origin: ALLOWED_ORIGIN_AWS,
   optionsSuccessStatus: 200,
   credentials: true,
 };
@@ -29,7 +29,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: ALLOWED_ORIGIN,
+    origin: ALLOWED_ORIGIN_AWS,
     methods: ["GET", "POST"],
   },
 });

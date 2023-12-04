@@ -28,4 +28,3 @@ jobs:
       - name: Run docker container
         run: docker run -d -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
 
-        # run: docker run -d  --env PORT=${{ secrets.PORT }} --env MONGO_URI=${{ secrets.MONGO_URI }} -p 3001:3001 --name hackerconnect-backend-container aravsanj/hackerconnect-backend
